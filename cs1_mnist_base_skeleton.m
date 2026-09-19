@@ -62,8 +62,8 @@ imagesc(testimage'); % this command plots an array as an image.  Type 'help imag
 
 %% This next section of code calls the three functions you are asked to specify
 
-k= ; % set k
-max_iter= ; % set the number of iterations of the algorithm
+k= 20; % set k
+max_iter= 1000; % set the number of iterations of the algorithm
 
 %% The next line initializes the centroids.  Look at the initialize_centroids()
 % function, which is specified further down this file.
@@ -76,17 +76,34 @@ cost_iteration = zeros(max_iter, 1);
 
 %% This for-loop enacts the k-means algorithm
 
-for iter=1:max_iter
-    
-      % FILL THIS IN!
-    
+n_train = size(train, 1);
+centroids = centroids(:, 1:784);
+
+for iter = 1:max_iter
+    dist   = inf(n_train, k);
+    labels = zeros(n_train, 1);
+
+    for i = 1:n_train
+        [labels(i), dist(i, labels(i))] = assign_vector_to_centroid(train(i, 1:784), centroids);
+    end
+
+    train(:, 785) = labels;
+
+    centroids = update_Centroids(train, k);
+
+    cost_iteration(iter) = sum(min(dist, [], 2));
 end
 
 %% This section of code plots the k-means cost as a function of the number
 % of iterations
 
 figure;
-% FILL THIS IN!
+figure;
+plot(1:max_iter, cost_iteration, '-o');
+xlabel('Iteration');
+ylabel('K-means cost (WCSS)');
+title('K-means convergence');
+grid on;
 
 
 %% This next section of code will make a plot of all of the centroids

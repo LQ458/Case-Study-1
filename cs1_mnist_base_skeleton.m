@@ -130,9 +130,14 @@ end
 % the vector and the assigned centroid.
 
 function [index, vec_distance] = assign_vector_to_centroid(data,centroids)
+    k = size(centroids, 1);
+    d = zeros(k, 1);
 
-% FILL THIS IN
+    for j = 1:k
+        d(j) = norm(data - centroids(j, :));
+    end
 
+    [vec_distance, index] = min(d);
 end
 
 
@@ -142,7 +147,15 @@ end
 % training images.
 
 function new_centroids=update_Centroids(data,K)
+    D = size(data, 2) - 1;
+    new_centroids = zeros(K, D);
 
-% FILL THIS IN
+    for j = 1:K
+        assignedVectors = data(data(:,end) == j, 1:D);
+        if ~isempty(assignedVectors)
+            new_centroids(j, :) = mean(assignedVectors, 1);
+        end
 
+    end
+    
 end

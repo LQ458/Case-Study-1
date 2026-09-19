@@ -1,7 +1,4 @@
-%% Case Study 1: classify test images
-% Ethan Wu
-% Run after training, or load classifierdata.mat automatically below.
-% For competition data, put test in the workspace before running this file.
+
 if ~exist('centroids','var') || ~exist('centroid_labels','var')
     load('classifierdata.mat','centroids','centroid_labels');
 end

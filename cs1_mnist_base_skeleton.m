@@ -1,7 +1,3 @@
-%% Case Study 1: k-means training
-% Ethan Wu
-% Run in the folder containing the two MNIST CSV files.
-% Then run cs1_mnist_evaluate_test_set.
 clear;
 close all;
 

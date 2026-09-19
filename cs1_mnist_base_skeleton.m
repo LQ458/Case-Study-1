@@ -1,148 +1,136 @@
-
-clear all;
-close all;
-
-%% In this script, you need to implement three functions as part of the k-means algorithm.
-% These steps will be repeated until the algorithm converges:
-
-  % 1. initialize_centroids
-  % This function sets the initial values of the centroids
-  
-  % 2. assign_vector_to_centroid
-  % This goes through the collection of all vectors and assigns them to
-  % centroid based on norm/distance
-  
-  % 3. update_centroids
-  % This function updates the location of the centroids based on the collection
-  % of vectors (handwritten digits) that have been assigned to that centroid.
-
-
-%% Initialize Data Set
-% These next lines of code read in two sets of MNIST digits that will be used for training and testing respectively.
-
-% training set (1500 images)
-train=csvread('mnist_train_1500.csv');
-trainsetlabels = train(:,785);
-train=train(:,1:784);
-train(:,785)=zeros(1500,1);
-
-% testing set (200 images with 11 outliers)
-test=csvread('mnist_test_200_woutliers.csv');
-% store the correct test labels
-correctlabels = test(:,785);
-test=test(:,1:784);
-
-% now, zero out the labels in "test" so that you can use this to assign
-% your own predictions and evaluate against "correctlabels"
-% in the 'cs1_mnist_evaluate_test_set.m' script
-test(:,785)=zeros(200,1);
-
-%% After initializing, you will have the following variables in your workspace:
-% 1. train (a 1500 x 785 array, containins the 1500 training images)
-% 2. test (a 200 x 785 array, containing the 200 testing images)
-% 3. correctlabels (a 200 x 1 array containing the correct labels (numerical
-% meaning) of the 200 test images
-
-%% To visualize an image, you need to reshape it from a 784 dimensional array into a 28 x 28 array.
-% to do this, you need to use the reshape command, along with the transpose
-% operation.  For example, the following lines plot the first test image
-
-figure;
-colormap('gray'); % this tells MATLAB to depict the image in grayscale
-testimage = reshape(test(1,[1:784]), [28 28]);
-% we are reshaping the first row of 'test', columns 1-784 (since the 785th
-% column is going to be used for storing the centroid assignment.
-imagesc(testimage'); % this command plots an array as an image.  Type 'help imagesc' to learn more.
-
-%% After importing, the array 'train' consists of 1500 rows and 785 columns.
-% Each row corresponds to a different handwritten digit (28 x 28 = 784)
-% plus the last column, which is used to index that row (i.e., label which
-% cluster it belongs to.  Initially, this last column is set to all zeros,
-% since there are no clusters yet established.
-
-%% This next section of code calls the three functions you are asked to specify
-
-k= ; % set k
-max_iter= ; % set the number of iterations of the algorithm
-
-%% The next line initializes the centroids.  Look at the initialize_centroids()
-% function, which is specified further down this file.
-
-centroids=initialize_centroids(train,k);
-
-%% Initialize an array that will store k-means cost at each iteration
-
-cost_iteration = zeros(max_iter, 1);
-
-%% This for-loop enacts the k-means algorithm
-
-for iter=1:max_iter
-    
-      % FILL THIS IN!
-    
+%% Case Study 1: hand-written Lloyd k-means for MNIST
+% Run this script, then cs1_mnist_evaluate_test_set.
+% Optional settings: cs1_config = struct('k',40,'max_iter',100,'restarts',5).
+% The 785th column stores assignments and NEVER enters a distance or mean.
+% No built-in clustering function or Statistics Toolbox is used.
+script_dir = fileparts(mfilename('fullpath'));
+if ~exist('cs1_config','var'), cs1_config = struct(); end
+if ~isfield(cs1_config,'k'), cs1_config.k = 80; end
+if ~isfield(cs1_config,'max_iter'), cs1_config.max_iter = 100; end
+if ~isfield(cs1_config,'restarts'), cs1_config.restarts = 5; end
+if ~isfield(cs1_config,'seed'), cs1_config.seed = 1050; end
+if ~isfield(cs1_config,'make_figures'), cs1_config.make_figures = true; end
+if ~isfield(cs1_config,'save_model'), cs1_config.save_model = true; end
+if ~isfield(cs1_config,'verbose'), cs1_config.verbose = true; end
+if ~isfield(cs1_config,'output_dir'), cs1_config.output_dir = script_dir; end
+data_file = fullfile(script_dir,'mnist_train_1500.csv');
+if ~isfile(data_file), data_file = fullfile(script_dir,'..','mnist_train_1500.csv'); end
+raw_train = readmatrix(data_file);
+assert(size(raw_train,2)==785 && all(isfinite(raw_train(:))), 'Invalid training data.');
+if isfield(cs1_config,'training_rows'), raw_train = raw_train(cs1_config.training_rows,:); end
+trainsetlabels = raw_train(:,785);
+assert(all(ismember(trainsetlabels,0:9)), 'Training labels must be digits 0 through 9.');
+train = [raw_train(:,1:784), zeros(size(raw_train,1),1)];
+k = cs1_config.k; max_iter = cs1_config.max_iter;
+assert(isscalar(k) && k==floor(k) && k>=1 && k<=size(train,1), 'Invalid k.');
+assert(max_iter>=1 && max_iter==floor(max_iter), 'Invalid max_iter.');
+assert(cs1_config.restarts>=1 && cs1_config.restarts==floor(cs1_config.restarts), 'Invalid restart count.');
+best_cost = inf;
+restart_costs = zeros(cs1_config.restarts,1);
+restart_iterations = zeros(cs1_config.restarts,1);
+for restart = 1:cs1_config.restarts
+    rng(cs1_config.seed + restart - 1,'twister');
+    centroids = initialize_centroids(train,k);
+    previous_assignments = zeros(size(train,1),1);
+    cost_iteration = zeros(max_iter,1);
+    converged = false;
+    for iter = 1:max_iter
+        [assignments,~] = assign_vector_to_centroid(train,centroids);
+        train(:,785) = assignments;
+        centroids = update_Centroids(train,k,centroids);
+        residuals = train(:,1:784) - centroids(assignments,1:784);
+        cost_iteration(iter) = sum(residuals(:).^2); % SSE after centroid update
+        if isequal(assignments,previous_assignments)
+            converged = true;
+            break;
+        end
+        previous_assignments = assignments;
+    end
+    cost_iteration = cost_iteration(1:iter);
+    assert(all(diff(cost_iteration)<=1e-8*max(1,cost_iteration(1))), 'SSE increased.');
+    restart_costs(restart) = cost_iteration(end);
+    restart_iterations(restart) = iter;
+    if cost_iteration(end)<best_cost
+        best_cost = cost_iteration(end);
+        best_centroids = centroids;
+        best_history = cost_iteration;
+        best_assignments = assignments;
+        best_restart = restart;
+        best_converged = converged;
+    end
+end
+centroids = best_centroids;
+cost_iteration = best_history;
+train(:,785) = best_assignments;
+if ~best_converged
+    warning('Iteration limit reached; increase max_iter for fully converged results.');
+end
+centroid_labels = zeros(k,1);
+cluster_counts = zeros(k,1);
+cluster_purity = zeros(k,1);
+for j = 1:k
+    members = train(:,785)==j;
+    cluster_counts(j) = sum(members);
+    if any(members)
+        % mode selects the smaller digit when the counts tie.
+        centroid_labels(j) = mode(trainsetlabels(members));
+        cluster_purity(j) = mean(trainsetlabels(members)==centroid_labels(j));
+    else
+        % Retained empty centroid: use the label of the nearest training image.
+        [~,nearest] = min(sum((train(:,1:784)-centroids(j,1:784)).^2,2));
+        centroid_labels(j) = trainsetlabels(nearest);
+        cluster_purity(j) = NaN;
+    end
+end
+if cs1_config.save_model
+    if ~isfolder(cs1_config.output_dir), mkdir(cs1_config.output_dir); end
+    % Exactly the two required variables, with dimensions k x 785 and k x 1.
+    save(fullfile(cs1_config.output_dir,'classifierdata.mat'),'centroids','centroid_labels','-v7');
+    save(fullfile(cs1_config.output_dir,'training_details.mat'), 'cost_iteration', ...
+        'restart_costs','restart_iterations','best_restart','best_converged', ...
+        'cluster_counts','cluster_purity','cs1_config');
+end
+if cs1_config.verbose
+    fprintf('k=%d | best restart=%d | iterations=%d | SSE=%.6g | converged=%d\n', ...
+        k,best_restart,numel(cost_iteration),best_cost,best_converged);
+end
+if cs1_config.make_figures
+    figure('Name','Figure 1: k-means cost','Color','w');
+    if exist('theme','file'), theme(gcf,'light'); end
+    plot(1:numel(cost_iteration),cost_iteration,'-o','LineWidth',1.6,'MarkerSize',4);
+    xlabel('Iteration'); ylabel('Sum of squared pixel distances');
+    title(sprintf('Training cost, k = %d',k)); grid on;
+    figure('Name','Figure 2: centroids','Color','w');
+    if exist('theme','file'), theme(gcf,'light'); end
+    plotsize = ceil(sqrt(k));
+    for j = 1:k
+        subplot(plotsize,plotsize,j);
+        imagesc(reshape(centroids(j,1:784),[28,28])',[0,255]);
+        axis image off; title(sprintf('%d: %d',j,centroid_labels(j)));
+    end
+    colormap gray;
 end
 
-%% This section of code plots the k-means cost as a function of the number
-% of iterations
-
-figure;
-% FILL THIS IN!
-
-
-%% This next section of code will make a plot of all of the centroids
-% Again, use help <functionname> to learn about the different functions
-% that are being used here.
-
-figure;
-colormap('gray');
-
-plotsize = ceil(sqrt(k));
-
-for ind=1:k
-    
-    centr=centroids(ind,[1:784]);
-    subplot(plotsize,plotsize,ind);
-    
-    imagesc(reshape(centr,[28 28])');
-    title(strcat('Centroid ',num2str(ind)))
-
+function centroids = initialize_centroids(data,num_centroids)
+    random_index = randperm(size(data,1));
+    centroids = [data(random_index(1:num_centroids),1:784), zeros(num_centroids,1)];
 end
 
-%% Function to initialize the centroids
-% This function randomly chooses k vectors from our training set and uses them to be our initial centroids
-% There are other ways you might initialize centroids.
-% ***Feel free to experiment.***
-% Note that this function takes two inputs and emits one output (y).
-
-function y=initialize_centroids(data,num_centroids)
-
-random_index=randperm(size(data,1));
-
-centroids=data(random_index(1:num_centroids),:);
-
-y=centroids;
-
+function [index,vec_distance] = assign_vector_to_centroid(data,centroids)
+    % Also accepts a matrix: one answer per row. Equivalent to Euclidean norm.
+    x = data(:,1:784); c = centroids(:,1:784);
+    d2 = max(0,sum(x.^2,2) + sum(c.^2,2)' - 2*(x*c'));
+    [minimum_d2,index] = min(d2,[],2);
+    vec_distance = sqrt(minimum_d2);
 end
 
-%% Function to pick the Closest Centroid using norm/distance
-% This function takes two arguments, a vector and a set of centroids
-% It returns the index of the assigned centroid and the distance between
-% the vector and the assigned centroid.
-
-function [index, vec_distance] = assign_vector_to_centroid(data,centroids)
-
-% FILL THIS IN
-
-end
-
-
-%% Function to compute new centroids using the mean of the vectors currently assigned to the centroid.
-% This function takes the set of training images and the value of k.
-% It returns a new set of centroids based on the current assignment of the
-% training images.
-
-function new_centroids=update_Centroids(data,K)
-
-% FILL THIS IN
-
+function new_centroids = update_Centroids(data,K,previous_centroids)
+    % A previous centroid is retained if its cluster is empty. This avoids NaN
+    % and preserves the non-increasing SSE property of Lloyd updates.
+    new_centroids = previous_centroids;
+    for j = 1:K
+        members = data(:,785)==j;
+        if any(members), new_centroids(j,1:784) = mean(data(members,1:784),1); end
+    end
+    new_centroids(:,785) = 0;
 end

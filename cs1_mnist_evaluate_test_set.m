@@ -1,55 +1,53 @@
-%% This code evaluates the test set.
 
-% ** Important.  This script requires that:
-% 1)'centroid_labels' be established in the workspace
-% AND
-% 2)'centroids' be established in the workspace
-% AND
-% 3)'test' be established in the workspace
-
-
-% IMPORTANT!!:
-% You should save 1) and 2) in a file named 'classifierdata.mat' as part of
-% your submission.
-
-predictions = zeros(200,1);
-outliers = zeros(200,1);
-
-% loop through the test set, figure out the predicted number
-for i = 1:200
-
-testing_vector=test(i,:);
-
-% Extract the centroid that is closest to the test image
-[prediction_index, vec_distance]=assign_vector_to_centroid(testing_vector,centroids);
-
-predictions(i) = centroid_labels(prediction_index);
-
+if ~exist('centroids','var') || ~exist('centroid_labels','var')
+    load('classifierdata.mat','centroids','centroid_labels');
+end
+if ~exist('test','var')
+    test = readmatrix('mnist_test_200.csv');
+    correctlabels = test(:,785);
+    test(:,785) = 0;
 end
 
-%% DESIGN AND IMPLEMENT A STRATEGY TO SET THE outliers VECTOR
-% outliers(i) should be set to 1 if the i^th entry is an outlier
-% otherwise, outliers(i) should be 0
-% FILL IN
-
-%% MAKE A STEM PLOT OF THE OUTLIER FLAG
-figure;
-% FILL IN
-
-%% The following plots the correct and incorrect predictions
-% Make sure you understand how this plot is constructed
-figure;
-plot(correctlabels,'o');
-hold on;
-plot(predictions,'x');
-title('Predictions');
-
-%% The following line provides the number of instances where and entry in correctlabel is
-% equatl to the corresponding entry in prediction
-% However, remember that some of these are outliers
-sum(correctlabels==predictions)
-
-function [index, vec_distance] = assign_vector_to_centroid(data,centroids)
-% FILL IN
+%% Predict using only the pixel columns
+n_test = size(test,1);
+predictions = zeros(n_test,1);
+for i = 1:n_test
+    prediction_index = assign_vector_to_centroid(test(i,:),centroids);
+    predictions(i) = centroid_labels(prediction_index);
 end
 
+%% Flag pixels outside the stated grayscale range
+% Flagged images are still classified and included in the overall accuracy.
+outliers = double(any(test(:,1:784)<0 | test(:,1:784)>255,2));
+figure('Color','w');
+if isprop(gcf,'Theme'), set(gcf,'Theme','light'); end
+stem(1:n_test,outliers,'filled');
+xlabel('Test image index'); ylabel('Outlier flag');
+title('Pixels outside [0,255]'); ylim([-0.1 1.2]); grid on;
+
+%% Figure 4: true and predicted labels
+figure('Color','w');
+if isprop(gcf,'Theme'), set(gcf,'Theme','light'); end
+if exist('correctlabels','var') && numel(correctlabels)==n_test
+    correctlabels = correctlabels(:);
+    correct_count = sum(predictions==correctlabels);
+    accuracy = correct_count/n_test;
+    fprintf('Correct: %d/%d; accuracy: %.2f%%\n', ...
+        correct_count,n_test,100*accuracy);
+    plot(1:n_test,correctlabels,'o'); hold on;
+    plot(1:n_test,predictions,'x'); hold off;
+    legend('True label','Prediction','Location','best');
+    title(sprintf('Predictions: %d/%d correct',correct_count,n_test));
+else
+    plot(1:n_test,predictions,'x');
+    title('Predicted digit labels');
+end
+xlabel('Test image index'); ylabel('Digit'); yticks(0:9); grid on;
+
+function [index,vec_distance] = assign_vector_to_centroid(data,centroids)
+    d = zeros(size(centroids,1),1);
+    for j = 1:size(centroids,1)
+        d(j) = norm(data(1:784)-centroids(j,1:784));
+    end
+    [vec_distance,index] = min(d);
+end

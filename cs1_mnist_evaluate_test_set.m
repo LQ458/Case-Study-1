@@ -1,7 +1,3 @@
-
-if ~exist('centroids','var') || ~exist('centroid_labels','var')
-    load('classifierdata.mat','centroids','centroid_labels');
-end
 if ~exist('test','var')
     test = readmatrix('mnist_test_200.csv');
     correctlabels = test(:,785);

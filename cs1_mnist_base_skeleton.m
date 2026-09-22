@@ -1,8 +1,8 @@
 clear;
 close all;
 
-k = 80; % Change k here to compare different numbers of clusters.
-max_iter = 100;
+k = 100; % Change k here to compare different numbers of clusters.
+max_iter = 50;
 rng(1050); % Repeatable random initialization.
 
 %% Read the data
